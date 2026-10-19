@@ -28,22 +28,23 @@ OctoFit Tracker is a three-tier application for a school fitness program. The st
 
 ## Implementation decisions
 
-Record your plan here before editing code.
+Implement the data tier first, then the logic tier, then the presentation tier. Keep the existing three-tier boundaries and API response shapes. Do not add authentication in this exercise.
 
-- Presentation tier decision:
-- Logic tier decision:
-- Data tier decision:
-- Activity tracking approach:
-- Team management approach:
-- Leaderboard approach:
-- Workout suggestions approach:
+- Presentation tier decision: Keep route-level views in React components and use the shared `getJson` client for all API reads. Use relative `/api` paths through the Vite proxy; each view must expose accessible loading, empty, and error states.
+- Logic tier decision: Implement behavior in `octofitService.ts` behind the existing Express routes. Validate inputs and return deliberate 4xx errors for invalid or missing records; keep HTTP handling separate from persistence rules and preserve the response envelopes in the API contract.
+- Data tier decision: Use Mongoose schemas for required fields, references, and defaults. Make seed operations idempotent with upserts and preserve unrelated records; do not clear collections as part of seeding.
+- Activity tracking approach: Validate the user and team IDs and confirm both records exist before writing. Require a non-empty activity type and positive minutes, store the user/team references and occurrence time, and compute points deterministically as one point per minute.
+- Team management approach: Require a non-blank name and mascot, default members to an empty array, and preserve submitted team fields. Validate supplied member IDs and retain them in the created and listed team.
+- Leaderboard approach: Sum activity points per team, include teams with no activity at zero, sort by total points descending, and assign 1-based ranks in the returned order.
+- Workout suggestions approach: Find the user by email and return a deliberate 4xx when no user matches. Prefer workouts aligned with recent activity when available, otherwise use the user's fitness goal; put the best match first and include a reason for the recommendation.
 
 ## Test plan
 
-Record the commands you run and what each failure means.
+Run the focused contract tests after each tier, then run both builds. The baseline results below were observed before implementing the decisions above; rerun each command after its tier is complete.
 
-- Data-tier command: `npm run test:data --prefix octofit-tracker/backend`
-- API command: `npm run test:api --prefix octofit-tracker/backend`
-- Frontend command: `npm test --prefix octofit-tracker/frontend`
-- Backend build command: `npm run build --prefix octofit-tracker/backend`
-- Frontend build command: `npm run build --prefix octofit-tracker/frontend`
+- Data-tier command: `npm run test:data --prefix octofit-tracker/backend` - checks model validation and safe, idempotent seeding. Baseline: 4 of 5 tests fail because required model fields are missing; the seed contract passes.
+- API command: `npm run test:api --prefix octofit-tracker/backend` - checks activity creation/listing and input rejection, team creation/listing, point totals/ranks, and user-specific workout suggestions. Baseline: all 4 tests fail; create endpoints return placeholder `501` responses, the leaderboard is empty, and the first workout suggestion does not match the requested user's goal/activity.
+- Frontend command: `npm test --prefix octofit-tracker/frontend` - checks data rendering, the workout request, and loading/empty/error states for each view. Baseline: all 15 tests fail because the views still show the implementation-pending state.
+- Backend build command: `npm run build --prefix octofit-tracker/backend` - checks TypeScript compilation independently of runtime behavior. Baseline: passes.
+- Frontend build command: `npm run build --prefix octofit-tracker/frontend` - checks TypeScript compilation and the Vite production build. Baseline: passes.
+- Repository validation command: `node --test tests/exercise-validation.test.mjs` - checks exercise metadata and grading safeguards, not app-tier behavior. Baseline: 4 of 40 tests fail because the README Copy Exercise badge does not match the template owner/name expected by the validator; resolve this separate metadata mismatch before using the suite as a clean final gate.
